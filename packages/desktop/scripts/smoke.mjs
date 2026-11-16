@@ -80,17 +80,21 @@ async function main() {
     if (res.result?.exceptionDetails) throw new Error(JSON.stringify(res.result.exceptionDetails).slice(0, 600))
     return res.result?.result?.value
   }
-  // our gate is the first screen of a copy nobody has signed in to
-  const seen = await evaluate(`new Promise((resolve) => {
-    const started = Date.now()
-    const timer = setInterval(() => {
-      const gate = Boolean(document.querySelector(".gz-gate"))
-      if (gate || Date.now() - started > 30000) {
-        clearInterval(timer)
-        resolve(JSON.stringify({ gate, title: document.title, text: document.body.innerText.slice(0, 160) }))
-      }
-    }, 250)
-  })`)
+  // our gate is the first screen of a copy nobody has signed in to. Asked again and again from here (not with a
+  // timer inside the page): the page may still be loading, or load once more, while we ask
+  let seen = null
+  for (let i = 0; i < 80 && !seen; i++) {
+    if (exited) throw new Error(`the app exited: ${JSON.stringify(exited)}`)
+    const answer = await evaluate(
+      `document.querySelector(".gz-gate") ? JSON.stringify({ gate: true, title: document.title, text: document.body.innerText.slice(0, 160) }) : ""`,
+    ).catch(() => "")
+    if (typeof answer === "string" && answer) seen = answer
+    else await sleep(500)
+  }
+  if (!seen) {
+    const what = await evaluate("JSON.stringify({ title: document.title, text: document.body.innerText.slice(0, 300) })").catch(() => "?")
+    throw new Error(`the first screen did not appear in 40 seconds; the window shows ${what}`)
+  }
   const state = await evaluate("window.api.gpunz.getState().then((s) => JSON.stringify(s.app))")
   console.log("window:", seen)
   console.log("app:", state)
@@ -100,7 +104,6 @@ async function main() {
     if (png.result?.data) writeFileSync(shot, Buffer.from(png.result.data, "base64"))
   }
   ws.close()
-  if (!JSON.parse(seen).gate) throw new Error("the first screen did not appear")
   if (JSON.parse(state).version !== version) throw new Error(`version ${JSON.parse(state).version}, expected ${version}`)
   console.log("smoke test passed:", version, process.platform, process.arch)
 }
