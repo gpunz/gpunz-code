@@ -78,6 +78,18 @@ jobs:
         working-directory: packages/desktop
         timeout-minutes: 60
 
+      # the packaged app is started on this system: the window must come up and report this version
+      - name: Smoke test
+        shell: bash
+        working-directory: packages/desktop
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get install -y --no-install-recommends xvfb
+            xvfb-run -a node scripts/smoke.mjs "dist/smoke-${{ matrix.name }}.png"
+          else
+            node scripts/smoke.mjs "dist/smoke-${{ matrix.name }}.png"
+          fi
+
       - name: Signature of the macOS app
         if: runner.os == 'macOS'
         shell: bash
@@ -114,6 +126,7 @@ jobs:
             packages/desktop/dist/gpunz-code-*
             packages/desktop/dist/latest*.yml
             packages/desktop/dist/SHA256SUMS-*.txt
+            packages/desktop/dist/smoke-*.png
 
   draft-release:
     name: draft release
@@ -137,7 +150,7 @@ jobs:
         run: |
           cd artifacts
           cat SHA256SUMS-*.txt > SHA256SUMS.txt
-          rm -f SHA256SUMS-*.txt
+          rm -f SHA256SUMS-*.txt smoke-*.png
           ls -la
           gh release create "$TAG" --draft --title "gpu.nz Code ${TAG#v}" \
             --notes "Draft: the update manifests are signed and the build is checked by hand before this is published." \
