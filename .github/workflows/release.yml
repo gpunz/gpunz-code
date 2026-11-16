@@ -1,0 +1,48 @@
+name: release
+
+# Puts the builds of one «desktop» run into a DRAFT GitHub release. Run by hand, after the same files were checked
+# and their update manifests signed on the release machine; the signed manifests are added to the draft from there,
+# and a person publishes it.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The «desktop» run whose builds are released
+        required: true
+      tag:
+        description: The tag to create (v0.2.0)
+        required: true
+      sha:
+        description: The commit that run built
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: desktop-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          cd artifacts
+          cat SHA256SUMS-*.txt > SHA256SUMS.txt
+          rm -f SHA256SUMS-*.txt smoke-*.png latest*.yml
+          ls -la
+          gh release create "$TAG" --draft --target "$SHA" --title "gpu.nz Code ${TAG#v}" \
+            --notes "Draft: the signed update manifests and the notes are added before this is published." \
+            gpunz-code-* SHA256SUMS.txt
