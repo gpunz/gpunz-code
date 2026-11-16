@@ -108,13 +108,14 @@ installed copy. Losing it means every user reinstalls by hand once; leaking it m
 
 To release (a person does this, by hand, every time):
 
-1. raise `version` in `packages/desktop/package.json` (the updater only moves forward), commit, tag `v<version>`;
-2. the `desktop` workflow builds Windows, macOS (both architectures) and Linux on GitHub's own runners and
-   collects the installers into a **draft** release;
-3. on the release machine: download the draft's files, check the build (install, sign in, launch a model, give the
-   agent a task, delete the server), sign `latest*.yml` with the release key (`latest*.yml.sig`);
-4. upload — installers first, manifests last — to `https://gpu.nz/downloads/code/`, add the signatures to the
-   GitHub release and publish it.
+1. raise `version` in `packages/desktop/package.json` (the updater only moves forward) and push;
+2. run the `desktop` workflow: it builds Windows, macOS (both architectures) and Linux on GitHub's own runners and
+   starts every packaged build once (`scripts/smoke.mjs`) — a build that does not come up fails the run;
+3. on the release machine: take the run's artifacts, check that every file matches its manifest, put the two macOS
+   manifests together and sign `latest*.yml` with the release key (`latest*.yml.sig`);
+4. upload — installers first, manifests last — to `https://gpu.nz/downloads/code/`; the signed manifests are the
+   moment of release: installed copies pick the version up within minutes;
+5. tag the built commit `v<version>` and publish the GitHub release with the same files and `SHA256SUMS.txt`.
 
 ## Error reports and feedback
 
