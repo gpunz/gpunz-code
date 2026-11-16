@@ -11,7 +11,7 @@ on:
         description: The «desktop» run whose builds are released
         required: true
       tag:
-        description: The tag of the draft release (v0.2.0)
+        description: The tag of the draft release (code-v0.2.0)
         required: true
 
 permissions:

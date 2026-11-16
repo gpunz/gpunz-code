@@ -115,7 +115,9 @@ To release (a person does this, by hand, every time):
    manifests together and sign `latest*.yml` with the release key (`latest*.yml.sig`);
 4. upload — installers first, manifests last — to `https://gpu.nz/downloads/code/`; the signed manifests are the
    moment of release: installed copies pick the version up within minutes;
-5. tag the built commit `v<version>` and publish the GitHub release with the same files and `SHA256SUMS.txt`.
+5. tag the built commit `code-v<version>` (the fork carries the upstream project's `v*` tags, so ours have their
+   own prefix), create a draft GitHub release for it, run the `release` workflow to add the run's files, add the
+   signed manifests and publish.
 
 ## Error reports and feedback
 
