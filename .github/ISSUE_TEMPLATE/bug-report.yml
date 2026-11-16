@@ -1,66 +1,47 @@
 name: Bug report
-description: Report an issue that should be fixed (avoid pasting giant AI generated summaries or your issue may be closed/ignored)
+description: Something in gpu.nz Code does not work as it should
+labels: ["bug"]
 body:
-  - type: textarea
-    id: description
+  - type: markdown
     attributes:
-      label: Description
-      description: Describe the bug you encountered
-      placeholder: What happened?
+      value: |
+        The quickest way to report a problem is inside the app: **Help → Help and feedback** — it can attach the app's log.
+        Please do not paste your account key or anything private here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and what you expected instead.
     validations:
       required: true
-
   - type: input
-    id: plugins
+    id: version
     attributes:
-      label: Plugins
-      description: What plugins are you using?
+      label: App version
+      description: Shown in Help → Help and feedback.
+      placeholder: 0.2.0
     validations:
-      required: false
-
-  - type: input
-    id: opencode-version
-    attributes:
-      label: OpenCode version
-      description: What version of OpenCode are you using?
-    validations:
-      required: false
-
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: Steps to reproduce
-      description: How can we reproduce this issue?
-      placeholder: |
-        1.
-        2.
-        3.
-    validations:
-      required: false
-
-  - type: textarea
-    id: screenshot-or-link
-    attributes:
-      label: Screenshot and/or share link
-      description: Run `/share` to get a share link, or attach a screenshot
-      placeholder: Paste link or drag and drop screenshot here
-    validations:
-      required: false
-
-  - type: input
+      required: true
+  - type: dropdown
     id: os
     attributes:
-      label: Operating System
-      description: what OS are you using?
-      placeholder: e.g., macOS 26.0.1, Ubuntu 22.04, Windows 11
+      label: System
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
     validations:
-      required: false
-
+      required: true
   - type: input
-    id: terminal
+    id: model
     attributes:
-      label: Terminal
-      description: what terminal are you using?
-      placeholder: e.g., iTerm2, Ghostty, Alacritty, Windows Terminal
-    validations:
-      required: false
+      label: Model
+      description: The model you launched, if it matters.
+      placeholder: Qwen 3.8 27B
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Help → «Save the logs to a file» makes an archive; attach what is relevant.
+      render: text

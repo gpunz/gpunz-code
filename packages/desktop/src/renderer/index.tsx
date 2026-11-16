@@ -30,6 +30,10 @@ import { windowFullscreen } from "./window-fullscreen"
 import { availableStartupServer, readyWslConnections } from "./wsl/connections"
 import "./styles.css"
 import { Splash } from "@opencode-ai/ui/logo"
+import { GpunzDock } from "./gpunz/dock"
+import { GpunzGate } from "./gpunz/gate"
+import { GpunzHelp, openHelp } from "./gpunz/help"
+import { gzT } from "./gpunz/i18n"
 import { useTheme } from "@opencode-ai/ui/theme/context"
 
 const root = document.getElementById("root")
@@ -59,6 +63,28 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     },
   })
 }
+
+// gpu.nz Code: errors of the page reach the main process, which decides what is worth sending (gpunz/reports.ts)
+window.addEventListener("error", (event) => {
+  const e = event.error as { name?: string; message?: string; stack?: string } | undefined
+  void window.api.gpunz
+    .reportError({
+      kind: "exception",
+      message: e?.message ? `${e.name ?? "Error"}: ${e.message}` : String(event.message ?? ""),
+      stack: e?.stack ?? "",
+    })
+    .catch(() => undefined)
+})
+window.addEventListener("unhandledrejection", (event) => {
+  const r = event.reason as { name?: string; message?: string; stack?: string } | undefined
+  void window.api.gpunz
+    .reportError({
+      kind: "rejection",
+      message: r?.message ? `${r.name ?? "Error"}: ${r.message}` : String(event.reason ?? ""),
+      stack: r?.stack ?? "",
+    })
+    .catch(() => undefined)
+})
 
 const [updaterState, setUpdaterState] = createSignal<UpdaterState>({ status: "disabled" })
 void window.api.updater.subscribe(setUpdaterState)
@@ -257,7 +283,6 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://opencode.ai/favicon-96x96-v3.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()
@@ -358,6 +383,21 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
   function Inner() {
     const cmd = useCommand()
     menuTrigger = (id) => cmd.trigger(id)
+    // gpu.nz Code: «Сообщить о проблеме» and the like, from the Help menu and the command palette
+    const language = useLanguage()
+    cmd.register("gpunz", () => {
+      const gz = gzT(language.locale())
+      return [
+        { id: "gpunz.bug", title: gz("help.cmd.bug"), category: "gpu.nz Code", onSelect: () => openHelp("bug") },
+        { id: "gpunz.idea", title: gz("help.cmd.idea"), category: "gpu.nz Code", onSelect: () => openHelp("idea") },
+        {
+          id: "gpunz.feedback",
+          title: gz("help.cmd.feedback"),
+          category: "gpu.nz Code",
+          onSelect: () => openHelp("feedback"),
+        },
+      ]
+    })
 
     const theme = useTheme()
 
@@ -401,7 +441,10 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
       ServerConnection.Key.make(availableStartupServer(defaultServer.latest, wslServers.data)),
     )
     return (
-      <Show when={ready()} fallback={<LoadingSplash />}>
+      <>
+        <GpunzHelp updater={updaterState} />
+        <Show when={ready()} fallback={<GpunzGate />}>
+          <GpunzDock />
         <Show when={effectiveDefaultServer()} keyed>
           {(key) => (
             <AppInterface
@@ -421,6 +464,7 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
           )}
         </Show>
       </Show>
+      </>
     )
   }
 

@@ -125,49 +125,52 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
     <div class="settings-v2-section">
       <h3 class="settings-v2-section-title">{language.t("settings.general.section.appearance")}</h3>
       <SettingsListV2>
-        <SettingsRowV2
-          title={language.t("settings.general.row.colorScheme.title")}
-          description={language.t("settings.general.row.colorScheme.description")}
-        >
-          <SelectV2
-            appearance="inline"
-            data-action="settings-color-scheme"
-            options={schemeOptions}
-            current={schemeOptions.find((option) => option === props.controller.scheme.current())}
-            placement="bottom-end"
-            gutter={6}
-            label={(option) => {
-              if (option === "system") return language.t("theme.scheme.system")
-              if (option === "light") return language.t("theme.scheme.light")
-              return language.t("theme.scheme.dark")
-            }}
-            onSelect={(option) => option && props.controller.scheme.select(option)}
-          />
-        </SettingsRowV2>
+        {/* gpu.nz Code: one look — the gpu.nz palette, dark; no colour-scheme or theme pickers */}
+        <Show when={false}>
+          <SettingsRowV2
+            title={language.t("settings.general.row.colorScheme.title")}
+            description={language.t("settings.general.row.colorScheme.description")}
+          >
+            <SelectV2
+              appearance="inline"
+              data-action="settings-color-scheme"
+              options={schemeOptions}
+              current={schemeOptions.find((option) => option === props.controller.scheme.current())}
+              placement="bottom-end"
+              gutter={6}
+              label={(option) => {
+                if (option === "system") return language.t("theme.scheme.system")
+                if (option === "light") return language.t("theme.scheme.light")
+                return language.t("theme.scheme.dark")
+              }}
+              onSelect={(option) => option && props.controller.scheme.select(option)}
+            />
+          </SettingsRowV2>
 
-        <SettingsRowV2
-          title={language.t("settings.general.row.theme.title")}
-          description={
-            <>
-              {language.t("settings.general.row.theme.description")}{" "}
-              <ExternalLink class="settings-v2-link" href="https://opencode.ai/docs/themes/">
-                {language.t("common.learnMore")}
-              </ExternalLink>
-            </>
-          }
-        >
-          <SelectV2
-            appearance="inline"
-            data-action="settings-theme"
-            options={props.controller.theme.options()}
-            current={props.controller.theme.current()}
-            placement="bottom-end"
-            gutter={6}
-            value={(option) => option.id}
-            label={(option) => option.name}
-            onSelect={props.controller.theme.select}
-          />
-        </SettingsRowV2>
+          <SettingsRowV2
+            title={language.t("settings.general.row.theme.title")}
+            description={
+              <>
+                {language.t("settings.general.row.theme.description")}{" "}
+                <ExternalLink class="settings-v2-link" href="https://opencode.ai/docs/themes/">
+                  {language.t("common.learnMore")}
+                </ExternalLink>
+              </>
+            }
+          >
+            <SelectV2
+              appearance="inline"
+              data-action="settings-theme"
+              options={props.controller.theme.options()}
+              current={props.controller.theme.current()}
+              placement="bottom-end"
+              gutter={6}
+              value={(option) => option.id}
+              label={(option) => option.name}
+              onSelect={props.controller.theme.select}
+            />
+          </SettingsRowV2>
+        </Show>
 
         <FontSetting kind="ui" fonts={props.controller.fonts} />
         <FontSetting kind="code" fonts={props.controller.fonts} />
@@ -486,33 +489,25 @@ export const SettingsGeneralV2: Component<{
     </div>
   )
 
+  // gpu.nz Code: «check for updates» is shown where the app can update itself (an installed release build); the
+  // upstream release-notes switch is not ours to show
   const UpdatesSection = () => (
-    <div class="settings-v2-section">
-      <h3 class="settings-v2-section-title">{language.t("settings.general.section.updates")}</h3>
+    <Show when={platform.updater && platform.updater.state().status !== "disabled"}>
+      <div class="settings-v2-section">
+        <h3 class="settings-v2-section-title">{language.t("settings.general.section.updates")}</h3>
 
-      <SettingsListV2>
-        <SettingsRowV2
-          title={language.t("settings.general.row.releaseNotes.title")}
-          description={language.t("settings.general.row.releaseNotes.description")}
-        >
-          <div data-action="settings-release-notes">
-            <Switch
-              checked={settings.general.releaseNotes()}
-              onChange={(checked) => settings.general.setReleaseNotes(checked)}
-            />
-          </div>
-        </SettingsRowV2>
-
-        <SettingsRowV2
-          title={language.t("settings.updates.row.check.title")}
-          description={language.t("settings.updates.row.check.description")}
-        >
-          <ButtonV2 size="normal" variant="neutral" disabled={!updater.action().run} onClick={() => updater.run()}>
-            {language.t(updater.action().label)}
-          </ButtonV2>
-        </SettingsRowV2>
-      </SettingsListV2>
-    </div>
+        <SettingsListV2>
+          <SettingsRowV2
+            title={language.t("settings.updates.row.check.title")}
+            description={language.t("settings.updates.row.check.description")}
+          >
+            <ButtonV2 size="normal" variant="neutral" disabled={!updater.action().run} onClick={() => updater.run()}>
+              {language.t(updater.action().label)}
+            </ButtonV2>
+          </SettingsRowV2>
+        </SettingsListV2>
+      </div>
+    </Show>
   )
 
   // We can probably remove this, right?

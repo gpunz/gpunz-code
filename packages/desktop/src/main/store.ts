@@ -20,6 +20,8 @@ export function getStore(name = SETTINGS_STORE) {
     cwd: electron.app.getPath("userData"),
     fileExtension: "",
     accessPropertiesByDotNotation: false,
+    // settings, drafts and the encrypted account key: nobody else on the computer reads them
+    configFileMode: 0o600,
   })
   cache.set(name, next)
   return next

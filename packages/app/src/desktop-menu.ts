@@ -279,19 +279,19 @@ export const DESKTOP_MENU: DesktopMenu[] = [
     id: "help",
     labelKey: "desktop.menu.help",
     items: [
-      { type: "item", labelKey: "desktop.menu.documentation", href: "https://opencode.ai/docs" },
-      { type: "item", labelKey: "desktop.menu.supportForum", href: "https://discord.com/invite/opencode" },
+      { type: "item", labelKey: "desktop.menu.documentation", href: "https://gpu.nz/docs/code" },
+      { type: "item", labelKey: "desktop.menu.supportForum", href: "https://gpu.nz/console/support" },
       { type: "item", labelKey: "desktop.menu.exportLogs", command: "logs.export" },
       { type: "separator" },
       {
         type: "item",
         labelKey: "desktop.menu.shareFeedback",
-        href: "https://github.com/anomalyco/opencode/issues/new?template=feature_request.yml",
+        command: "gpunz.feedback",
       },
       {
         type: "item",
         labelKey: "desktop.menu.reportBug",
-        href: "https://github.com/anomalyco/opencode/issues/new?template=bug_report.yml",
+        command: "gpunz.bug",
       },
     ],
   },

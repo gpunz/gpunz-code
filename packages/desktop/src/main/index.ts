@@ -6,16 +6,15 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, dialog } from "electron"
 
-import { Deferred, Effect, Fiber } from "effect"
+import { Deferred, Effect } from "effect"
 import contextMenu from "electron-context-menu"
 
 import type { ServerReadyData } from "../preload/types"
 import { checkAppExists, resolveAppPath } from "./apps"
 import { CHANNEL } from "./constants"
-import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
-import { forwardInitializationFailure } from "./initialization"
+import { registerIpcHandlers, sendMenuCommand } from "./ipc"
 import { exportDebugLogs, initCrashReporter, initLogging, startNetLog, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
 import {
@@ -47,25 +46,28 @@ import { registerWslIpcHandlers } from "./wsl/ipc"
 import { spawnWslSidecar } from "./wsl/sidecar"
 import { migrate } from "./migrate"
 import { cleanupStoreFiles } from "./store-cleanup"
-import { startBackgroundCli } from "./background-cli"
 import { setNativeTranslations } from "./native-translations"
+import { createGpunz, type GpunzController } from "./gpunz/controller"
+import { initReports, reportError } from "./gpunz/reports"
 
 const APP_NAMES: Record<string, string> = {
-  dev: "OpenCode Dev",
-  beta: "OpenCode Beta",
-  prod: "OpenCode",
+  dev: "gpu.nz Code Dev",
+  beta: "gpu.nz Code Beta",
+  prod: "gpu.nz Code",
 }
+// our own ids: the app's settings and sessions never mix with an OpenCode install on the same computer
 const APP_IDS: Record<string, string> = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "nz.gpu.code.dev",
+  beta: "nz.gpu.code.beta",
+  prod: "nz.gpu.code",
 }
 const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
-const SIDECAR_VERSION = process.env.OPENCODE_SIDECAR_V2 === "1" ? "v2" : "v1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
+/** the app is closing: processes that end now end because we asked */
+let quitting = false
 
 const pendingDeepLinks: string[] = []
 
@@ -76,13 +78,6 @@ function useEnvProxy() {
   } catch (error) {
     logger.warn("failed to load proxy environment", error)
   }
-}
-
-function emitDeepLinks(urls: string[]) {
-  if (urls.length === 0) return
-  pendingDeepLinks.push(...urls)
-  const win = getLastFocusedWindow()
-  if (win) sendDeepLinks(win, urls)
 }
 
 async function killSidecar() {
@@ -122,7 +117,7 @@ const main = Effect.gen(function* () {
 
   process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
 
-  const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
+  const appId = app.isPackaged ? APP_IDS[CHANNEL] : "nz.gpu.code.dev"
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
 
@@ -138,7 +133,7 @@ const main = Effect.gen(function* () {
     process.env.XDG_STATE_HOME = join(root, "state")
     return root
   })()
-  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "OpenCode Dev")
+  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "gpu.nz Code Dev")
   app.setAppUserModelId(appId)
   app.setPath(
     "userData",
@@ -148,6 +143,14 @@ const main = Effect.gen(function* () {
   initializeOldLayoutEligibility(app.getPath("userData"))
   logger = initLogging()
   initCrashReporter()
+  // gpu.nz Code: errors of the app itself reach its makers (gpunz/reports.ts: what is sent, and what never is).
+  // The monitor only watches: what Electron does with an uncaught exception stays as it was.
+  initReports({ log: (message, meta) => logger.log(message, meta) })
+  process.on("uncaughtExceptionMonitor", (error) => reportError("main", "exception", error))
+  process.on("unhandledRejection", (reason) => {
+    logger.error("unhandled rejection", reason)
+    reportError("main", "rejection", reason)
+  })
 
   const wslServers = createWslServersController(
     app.getVersion(),
@@ -200,14 +203,17 @@ const main = Effect.gen(function* () {
     return
   }
 
-  const shellEnv = preferAppEnv(app.getPath("userData"))
+  preferAppEnv(app.getPath("userData"))
+  // the agent's sessions live with this app, not in a stock OpenCode install's database
+  process.env.OPENCODE_DB ??= join(app.getPath("userData"), "gpunz-code.db")
 
+  // gpu.nz Code: links from outside (gpunzcode://…) are not acted on. Upstream lets a link open any folder as a
+  // project and prefill a prompt; a project's own config can start programs (MCP servers, plugins), so a web page
+  // could walk a person into running a stranger's code. Nothing of ours needs such links: sign-in is a code in the
+  // browser. A link only brings the window forward.
   app.on("second-instance", (_event: Event, argv: string[]) => {
-    const urls = argv.filter((arg: string) => arg.startsWith("opencode://"))
-    if (urls.length) {
-      logger.log("deep link received via second-instance", { urls })
-      emitDeepLinks(urls)
-    }
+    if (argv.some((arg: string) => arg.startsWith("gpunzcode://")))
+      logger.log("deep link ignored (second-instance)")
     const win = getLastFocusedWindow()
     if (win) {
       win.show()
@@ -215,28 +221,72 @@ const main = Effect.gen(function* () {
     }
   })
 
-  app.on("open-url", (event: Event, url: string) => {
+  app.on("open-url", (event: Event) => {
     event.preventDefault()
-    logger.log("deep link received via open-url", { url })
-    emitDeepLinks([url])
+    logger.log("deep link ignored (open-url)")
+    const win = getLastFocusedWindow()
+    if (win) {
+      win.show()
+      win.focus()
+    }
   })
 
-  app.on("before-quit", () => {
+  // quitting with a rented server: delete it (the default), leave it to the idle rule, or do not quit
+  let quitDecided = false
+  app.on("before-quit", (event) => {
+    if (!quitDecided && gpunz?.hasServer()) {
+      event.preventDefault()
+      const ru = [app.getLocale(), ...app.getPreferredSystemLanguages()].some((l) => l.toLowerCase().startsWith("ru"))
+      void dialog
+        .showMessageBox({
+          type: "question",
+          buttons: ru
+            ? ["Удалить сервер и выйти", "Оставить работать", "Отмена"]
+            : ["Delete the server and quit", "Keep it running", "Cancel"],
+          defaultId: 0,
+          cancelId: 2,
+          title: "gpu.nz Code",
+          message: ru ? "Удалить арендованный сервер?" : "Delete the rented server?",
+          detail: ru
+            ? "Пока сервер работает, с баланса списываются деньги. На сервере ничего вашего нет: проекты и история остаются на этом компьютере. Оставленный сервер удалится сам после простоя, если это включено в настройках."
+            : "The balance is charged while the server runs. Nothing of yours is on it: projects and history stay on this computer. A server left running is deleted by the idle rule, if it is on in the settings.",
+        })
+        .then(async (result) => {
+          if (result.response === 2) return
+          quitDecided = true
+          await gpunz?.shutdown(result.response === 0).catch(() => undefined)
+          app.quit()
+        })
+      return
+    }
     setAppQuitting()
     void stopSidecars()
   })
 
   app.on("will-quit", () => {
+    quitting = true
     setAppQuitting()
     void stopSidecars()
   })
 
   app.on("child-process-gone", (_event, details) => {
     writeLog("utility", "child process gone", { details }, "error")
+    if (details.reason !== "clean-exit" && details.reason !== "killed")
+      reportError(
+        "native",
+        "child-gone",
+        { message: `${details.type} process gone: ${details.reason} (exit ${details.exitCode})`, stack: "" },
+        { process: details.name ?? details.serviceName ?? details.type },
+      )
   })
 
   app.on("render-process-gone", (_event, webContents, details) => {
     writeLog("window", "app render process gone", { url: safeWebContentsURL(webContents), details }, "error")
+    if (details.reason !== "clean-exit" && details.reason !== "killed")
+      reportError("native", "window-gone", {
+        message: `window process gone: ${details.reason} (exit ${details.exitCode})`,
+        stack: "",
+      })
   })
 
   setRelaunchHandler(() => {
@@ -250,7 +300,10 @@ const main = Effect.gen(function* () {
     })
   }
 
-  const serverReady = Deferred.makeUnsafe<ServerReadyData, unknown>()
+  // gpu.nz Code: the agent server starts once a model is rented (gpunz/controller.ts), and again when the model
+  // changes, so the «ready» promise the renderer waits on is replaced on each start
+  let serverReady = Deferred.makeUnsafe<ServerReadyData, unknown>()
+  let gpunz: GpunzController | null = null
 
   yield* Effect.promise(() => app.whenReady())
 
@@ -268,7 +321,7 @@ const main = Effect.gen(function* () {
       }),
     ),
   )
-  app.setAsDefaultProtocolClient("opencode")
+  // no link scheme is registered: the app takes nothing from links (see «second-instance» above)
   registerRendererProtocol()
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
@@ -286,7 +339,8 @@ const main = Effect.gen(function* () {
     awaitInitialization: Effect.fnUntraced(
       function* () {
         logger.log("awaiting server ready")
-        const res = yield* Deferred.await(serverReady)
+        const current = serverReady
+        const res = yield* Deferred.await(current)
         logger.log("server ready", { url: res.url })
         return res
       },
@@ -306,7 +360,12 @@ const main = Effect.gen(function* () {
     showUpdater: () => showUpdaterDialog(updater, true),
     setBackgroundColor: (color) => setBackgroundColor(color),
     exportDebugLogs: () => exportDebugLogs(),
-    recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
+    recordFatalRendererError: (error) => {
+      writeLog("renderer", "fatal renderer error", { ...error }, "error")
+      // upstream's error screen: `error` is the message with its stack
+      const [first = "", ...rest] = String(error.error ?? "").split("\n")
+      reportError("renderer", "fatal", { message: first, stack: rest.join("\n") })
+    },
     setNativeTranslations: (bundle) => {
       if (setNativeTranslations(bundle)) createMenu(menuDeps)
     },
@@ -324,89 +383,76 @@ const main = Effect.gen(function* () {
     ),
   )
 
-  const loadingTask = yield* Effect.gen(function* () {
-    logger.log("sidecar connection started", { version: SIDECAR_VERSION })
+  if (process.platform === "win32") {
+    void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))
+  }
 
-    ensureLoopbackNoProxy()
-    useEnvProxy()
-
-    if (SIDECAR_VERSION === "v2") {
-      logger.log("spawning v2 sidecar")
-      const sidecar = yield* Effect.promise(() => startBackgroundCli(logger, shellEnv?.XDG_STATE_HOME))
-      yield* Deferred.succeed(serverReady, {
-        url: sidecar.url,
-        username: sidecar.username,
-        password: sidecar.password,
-      })
-
-      if (process.platform === "win32") {
-        void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))
-      }
-
-      logger.log("loading task finished")
-      return
-    }
-
-    const port = yield* Effect.gen(function* () {
-      const fromEnv = process.env.OPENCODE_PORT
-      if (fromEnv) {
-        const parsed = Number.parseInt(fromEnv, 10)
-        if (!Number.isNaN(parsed)) return parsed
-      }
-
-      const res = yield* Deferred.make<number, unknown>()
+  // gpu.nz Code: the window opens at once with our own screens (sign in → model → launch); the agent server is
+  // started by the controller when the rented model answers, with that model as its only provider.
+  let agentIdentity: string | null = null
+  const freePort = () =>
+    new Promise<number>((resolve, reject) => {
+      const fromEnv = Number.parseInt(process.env.OPENCODE_PORT ?? "", 10)
+      if (!Number.isNaN(fromEnv)) return resolve(fromEnv)
       const socket = createServer()
-      socket.on("error", (e) => Deferred.failSync(res, () => e))
+      socket.on("error", reject)
       socket.listen(0, "127.0.0.1", () => {
         const address = socket.address()
         if (typeof address !== "object" || !address) {
           socket.close()
-          Deferred.failSync(res, () => new Error("Failed to get port"))
+          reject(new Error("Failed to get port"))
           return
         }
         const port = address.port
-        socket.close(() => Effect.runSync(Deferred.succeed(res, port)))
+        socket.close(() => resolve(port))
       })
-
-      return yield* Deferred.await(res)
     })
+  const startAgent = async (env: Record<string, string>, identity: string) => {
+    if (server && agentIdentity === identity) return
+    const restart = Boolean(server)
+    if (restart) {
+      logger.log("restarting agent server for another model", { identity })
+      await killSidecar()
+      serverReady = Deferred.makeUnsafe<ServerReadyData, unknown>()
+    }
+    Object.assign(process.env, env)
+    ensureLoopbackNoProxy()
+    useEnvProxy()
     const hostname = "127.0.0.1"
+    const port = await freePort()
     const url = `http://${hostname}:${port}`
     const password = randomUUID()
-
     logger.log("spawning sidecar", { url })
-    const { listener, health } = yield* Effect.promise(() =>
-      spawnLocalServer(hostname, port, password, {
+    try {
+      const { listener, health } = await spawnLocalServer(hostname, port, password, {
         userDataPath: app.getPath("userData"),
         onStdout: (message) => writeLog("server", "stdout", { message }),
         onStderr: (message) => writeLog("server", "stderr", { message }, "warn"),
-        onExit: (code) => writeLog("utility", "sidecar exited", { code }, "warn"),
-      }),
-    )
-    server = listener
-    yield* Deferred.succeed(serverReady, {
-      url,
-      username: "opencode",
-      password,
-    })
-
-    if (process.platform === "win32") {
-      void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))
+        onExit: (code) => {
+          writeLog("utility", "sidecar exited", { code }, "warn")
+          // the agent server died by itself (we stop it with `server` already cleared, or while quitting)
+          if (code && server && !quitting)
+            reportError("agent", "exit", { message: `agent server exited with code ${code}`, stack: "" })
+        },
+      })
+      server = listener
+      agentIdentity = identity
+      Effect.runSync(Deferred.succeed(serverReady, { url, username: "opencode", password }))
+      await Promise.race([health.wait, new Promise((resolve) => setTimeout(resolve, 30_000))]).catch((error) =>
+        logger.error("sidecar health check failed", String(error)),
+      )
+      // windows that were talking to the previous server load again and pick up the new one
+      if (restart) for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.reload()
+    } catch (error) {
+      logger.error("agent server failed to start", String(error))
+      reportError("agent", "start", error)
+      Effect.runSync(Deferred.fail(serverReady, error))
+      throw error
     }
-
-    yield* Effect.promise(() => health.wait).pipe(
-      Effect.timeout("30 seconds"),
-      Effect.catch((e) =>
-        Effect.sync(() => {
-          logger.error("sidecar health check failed", e.toString())
-        }),
-      ),
-    )
-
-    logger.log("loading task finished")
-  }).pipe(forwardInitializationFailure(serverReady), Effect.forkChild)
-
-  yield* Fiber.await(loadingTask)
+  }
+  gpunz = yield* Effect.promise(() =>
+    createGpunz({ logger: { log: (message, meta) => logger.log(message, meta) }, startAgent }),
+  )
 
   app.on("window-all-closed", () => {
     if (process.platform === "darwin") return

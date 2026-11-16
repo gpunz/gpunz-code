@@ -71,14 +71,8 @@ export const DialogSettings: Component<{
                 <div class="flex flex-col gap-1.5">
                   <TabsV2.SectionTitle>{language.t("settings.section.server")}</TabsV2.SectionTitle>
                   <div class="flex flex-col gap-1.5 w-full">
-                    <TabsV2.Trigger value="servers">
-                      <Icon name="server" />
-                      {language.t("status.popover.tab.servers")}
-                    </TabsV2.Trigger>
-                    <TabsV2.Trigger value="providers">
-                      <Icon name="providers" />
-                      {language.t("settings.providers.title")}
-                    </TabsV2.Trigger>
+                    {/* gpu.nz Code: one server (the local agent) and one provider (the rented model) — no tabs
+                        for choosing others */}
                     <TabsV2.Trigger value="models">
                       <Icon name="models" />
                       {language.t("settings.models.title")}

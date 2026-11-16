@@ -96,6 +96,9 @@ const require = __cjs_mod__.createRequire(import.meta.url);
     root: "src/renderer",
     build: {
       sourcemap: true,
+      // gpu.nz Code: not minified, so an error report from a user's copy names real functions (gpunz/reports.ts);
+      // the source is public anyway, and the cost is a few megabytes inside a 130 MB installer
+      minify: false,
       rollupOptions: {
         input: {
           main: "src/renderer/index.html",

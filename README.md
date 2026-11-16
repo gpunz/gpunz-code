@@ -1,129 +1,84 @@
+<h1 align="center">gpu.nz Code</h1>
+<p align="center">An AI coding agent that runs on your own cloud GPU.<br>Free and open source. Windows, macOS, Linux.</p>
 <p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
-</p>
-<p align="center">The open source AI coding agent.</p>
-<p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
+  <a href="https://gpu.nz/en/code"><b>Download</b></a> ·
+  <a href="https://gpu.nz/en/docs/code">Documentation</a> ·
+  <a href="README.ru.md">Русский</a>
 </p>
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
+![The agent at work](.github/assets/agent.png)
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+gpu.nz Code is a desktop coding agent — it reads and edits the files of your project, runs commands and tests, and
+asks before anything destructive. The difference from the usual assistants is where the model lives: the app rents
+a GPU server at [gpu.nz](https://gpu.nz/en) for you, starts an open model on it (Qwen 3.8 out of the box, or any
+model from Ollama or a GGUF from Hugging Face) and connects the agent to it. The server is yours alone and is billed
+by the minute — no subscription, no request limits, no per-token price.
 
----
+**Built on [OpenCode](https://github.com/anomalyco/opencode) (MIT). This project is not made by the OpenCode team
+and is not affiliated with it.**
 
-### Installation
+## How it works
 
-```bash
-# YOLO
-curl -fsSL https://opencode.ai/install | bash
+1. **Download and sign in** with a gpu.nz account (a code you confirm in the browser).
+2. **Pick a model.** The app shows what a launch costs per hour and how long it takes, then picks a server itself.
+3. **Work.** The agent runs on your computer; only requests to the model leave it, and they go to your own server.
 
-# Package managers
-npm i -g opencode-ai@latest        # or bun/pnpm/yarn
-scoop install opencode             # Windows
-choco install opencode             # Windows
-brew install anomalyco/tap/opencode # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-bin               # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev branch
+![Picking a model](.github/assets/models.png)
+
+- **Your code stays with you.** The project is not uploaded anywhere. The rented server holds nothing of yours, so
+  it is deleted, not stopped.
+- **No bill for a closed laptop.** The server is deleted after 15, 30 or 60 idle minutes (your choice) and when you
+  quit the app.
+- **A host died?** The app takes another server and the conversation goes on. A launch that failed is not paid for.
+- **MCP servers, skills and rules** work as in OpenCode.
+
+## Download
+
+Installers for every system are on **[gpu.nz/code](https://gpu.nz/en/code)** and in
+[Releases](https://github.com/gpunz/gpunz-code/releases).
+
+| System | File |
+|---|---|
+| Windows 10/11 (x64) | `gpunz-code-win-x64.exe` |
+| macOS, Apple Silicon | `gpunz-code-mac-arm64.dmg` |
+| macOS, Intel | `gpunz-code-mac-x64.dmg` |
+| Linux (x64) | `.AppImage`, `.deb`, `.rpm` |
+
+The builds are not signed with a paid certificate yet, so the system asks once more than usual: on Windows press
+«More info» → «Run anyway»; on macOS open System Settings → Privacy & Security → «Open Anyway». How releases are
+built and how to check a download: [code signing policy](https://gpu.nz/en/code/signing).
+
+## Privacy
+
+- The account key is kept in the operating system's own keychain and is sent only to `gpu.nz`.
+- **Error reports.** The app reports its own errors to us so that we can fix them: the error's text and stack (with
+  keys, e-mail addresses and the user name in file paths cut out), the app's version, the system, and a random
+  installation id. No account, no project files, no requests to the model. One checkbox in «Help and feedback»
+  turns it off. The code is in [`reports.ts`](packages/desktop/src/main/gpunz/reports.ts).
+- **Feedback** is sent only when you press «Send», with your account's e-mail so we can answer and — only if you
+  tick the box — the end of the app's log.
+- Full text: [privacy policy](https://gpu.nz/en/legal/privacy).
+
+## Bugs, ideas, feedback
+
+The quickest way is inside the app: **Help → Help and feedback** (a problem, an idea, or a word about the app).
+Here on GitHub: [issues](https://github.com/gpunz/gpunz-code/issues). Security problems: see [SECURITY.md](SECURITY.md).
+
+## Build it yourself
+
+Needs Bun 1.4.4 and Node 24.
+
+```sh
+bun install
+cd packages/desktop
+echo '{}' > /tmp/models-empty.json
+OPENCODE_VERSION=1.19.5 OPENCODE_CHANNEL=prod MODELS_DEV_API_JSON=/tmp/models-empty.json bun run build
+OPENCODE_CHANNEL=prod npx electron-builder --publish never --config electron-builder.config.ts   # add --win / --mac / --linux
 ```
 
-> [!TIP]
-> Remove versions older than 0.1.x before installing.
+Development run: `OPENCODE_CHANNEL=dev`, build as above, then `npx electron .` in `packages/desktop`.
+What is ours and what is upstream, the security decisions and the release process: [GPUNZ.md](GPUNZ.md).
 
-### Desktop App (BETA)
+## License
 
-OpenCode is also available as a desktop application. Download directly from the [releases page](https://github.com/anomalyco/opencode/releases) or [opencode.ai/download](https://opencode.ai/download).
-
-| Platform              | Download                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-windows-x64.exe` |
-| Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
-```
-
-#### Installation Directory
-
-The install script respects the following priority order for the installation path:
-
-1. `$OPENCODE_INSTALL_DIR` - Custom installation directory
-2. `$XDG_BIN_DIR` - XDG Base Directory Specification compliant path
-3. `$HOME/bin` - Standard user binary directory (if it exists or can be created)
-4. `$HOME/.opencode/bin` - Default fallback
-
-```bash
-# Examples
-OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
-```
-
-### Agents
-
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
-
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
-
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
-
-Learn more about [agents](https://opencode.ai/docs/agents).
-
-### Documentation
-
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).
-
-### Contributing
-
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
-
-### Building on OpenCode
-
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
-
----
-
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+MIT — see [LICENSE](LICENSE). OpenCode is © its authors; the gpu.nz parts are © gpu.nz.

@@ -1,3 +1,12 @@
+import type {
+  FeedbackInput,
+  FeedbackResult,
+  GpunzEstimate,
+  GpunzModel,
+  GpunzSettings,
+  GpunzState,
+  PickMode,
+} from "../main/gpunz/types"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
@@ -42,7 +51,34 @@ export type FatalRendererError = {
   os?: string
 }
 
+export type GpunzAPI = {
+  getState: () => Promise<GpunzState>
+  subscribe: (cb: (state: GpunzState) => void) => () => void
+  login: () => Promise<void>
+  cancelLogin: () => Promise<void>
+  logout: () => Promise<void>
+  models: () => Promise<GpunzModel[]>
+  estimate: (modelId: string, mode: PickMode, customName?: string | null) => Promise<GpunzEstimate>
+  launch: (modelId: string, mode: PickMode, customName?: string | null) => Promise<void>
+  openAgent: () => Promise<void>
+  stop: () => Promise<void>
+  extend: () => Promise<void>
+  activity: () => Promise<void>
+  refresh: () => Promise<void>
+  setSettings: (patch: Partial<GpunzSettings>) => Promise<GpunzSettings>
+  open: (
+    target: "topup" | "console" | "signup" | "support" | "download" | "docs" | "privacy" | "github" | "issues",
+    amountRub?: number,
+  ) => Promise<void>
+  /** an error the page caught; sent on only if the person has not turned reports off */
+  reportError: (error: { kind: string; message: string; stack: string }) => Promise<void>
+  feedback: (input: FeedbackInput) => Promise<FeedbackResult>
+  /** ask again whether a newer version is out (builds that do not update themselves) */
+  checkVersion: () => Promise<void>
+}
+
 export type ElectronAPI = {
+  gpunz: GpunzAPI
   killSidecar: () => Promise<void>
   installCli: () => Promise<string>
   awaitInitialization: () => Promise<ServerReadyData>

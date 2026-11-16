@@ -1,14 +1,15 @@
 {
   "name": "@opencode-ai/desktop",
   "private": true,
-  "version": "1.19.5",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://gpu.nz",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "gpu.nz",
+    "email": "admin@gpu.nz"
   },
+  "description": "gpu.nz Code — an AI coding agent on a GPU server rented by the minute. Built on OpenCode (MIT).",
   "scripts": {
     "typecheck": "tsgo -b",
     "predev": "bun ./scripts/predev.ts",

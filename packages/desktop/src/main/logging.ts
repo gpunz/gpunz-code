@@ -98,6 +98,32 @@ export function tail(): string {
   }
 }
 
+/**
+ * The end of every log of this run, for a message the person chose to attach the log to («Помощь и обратная связь»).
+ * The caller masks keys, addresses and home-folder names before it leaves the computer (gpunz/reports.ts).
+ */
+export function diagnostics(perFile = 24_000, total = 100_000): string {
+  if (!run) return ""
+  const parts: string[] = []
+  let left = total
+  try {
+    // the app's own log first: it is the one that says what went wrong
+    const names = readdirSync(run)
+      .filter((name) => name.endsWith(".log"))
+      .sort((a, b) => Number(b === "main.log") - Number(a === "main.log") || a.localeCompare(b))
+    for (const name of names) {
+      if (left <= 0) break
+      const text = readFileSync(join(run, name), "utf8")
+      const end = text.slice(-Math.min(perFile, left))
+      left -= end.length
+      parts.push(`===== ${name} =====\n${end}`)
+    }
+  } catch {
+    // a log that cannot be read is not worth failing the message for
+  }
+  return parts.join("\n\n")
+}
+
 function initRunDirectory() {
   root = join(app.getPath("userData"), "logs")
   run = join(root, stamp())

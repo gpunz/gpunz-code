@@ -1,6 +1,7 @@
 import { app, dialog } from "electron"
 import pkg from "electron-updater"
 import { UPDATER_ENABLED } from "./constants"
+import { RELEASE_FEED, releaseVerified } from "./gpunz/release"
 import { createUpdaterController, type UpdaterReadyRecord } from "./updater-controller"
 import { getLogger } from "./logging"
 import { getStore } from "./store"
@@ -13,9 +14,12 @@ const key = "ready"
 export function setupAutoUpdater(stop: () => Promise<void>) {
   const logger = getLogger()
   autoUpdater.logger = logger
+  // our feed, whatever the build was packed with
+  autoUpdater.setFeedURL({ provider: "generic", url: RELEASE_FEED })
   autoUpdater.channel = "latest"
   autoUpdater.allowPrerelease = false
-  autoUpdater.allowDowngrade = true
+  // never back to an older release: an old signed manifest must not be replayable
+  autoUpdater.allowDowngrade = false
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
   logger.log("auto updater configured", {
@@ -30,7 +34,15 @@ export function setupAutoUpdater(stop: () => Promise<void>) {
     enabled: UPDATER_ENABLED,
     currentVersion: app.getVersion(),
     backend: {
-      checkForUpdates: () => autoUpdater.checkForUpdates(),
+      checkForUpdates: async () => {
+        const result = await autoUpdater.checkForUpdates()
+        if (!result?.isUpdateAvailable) return result
+        // nothing is downloaded, let alone installed, unless the release is signed by our key (gpunz/release.ts)
+        const verdict = await releaseVerified(result.updateInfo)
+        if (verdict.ok) return result
+        logger.warn("update refused: not a verified release", { version: result.updateInfo?.version, reason: verdict.reason })
+        return { isUpdateAvailable: false, updateInfo: result.updateInfo }
+      },
       downloadUpdate: () => autoUpdater.downloadUpdate(),
       quitAndInstall: () => {
         // quitAndInstall closes all windows before emitting before-quit, so

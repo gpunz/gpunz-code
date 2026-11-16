@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import type { ElectronAPI, WslServersEvent } from "./types"
+import type { GpunzState } from "../main/gpunz/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 
 const updaterCallbacks = new Set<(state: UpdaterState) => void>()
@@ -11,6 +12,32 @@ const updaterHandler = (_: unknown, state: UpdaterState) => {
 }
 
 const api: ElectronAPI = {
+  gpunz: {
+    getState: () => ipcRenderer.invoke("gpunz-get-state"),
+    subscribe: (cb) => {
+      const handler = (_: unknown, state: GpunzState) => cb(state)
+      ipcRenderer.on("gpunz-state", handler)
+      return () => {
+        ipcRenderer.removeListener("gpunz-state", handler)
+      }
+    },
+    login: () => ipcRenderer.invoke("gpunz-login"),
+    cancelLogin: () => ipcRenderer.invoke("gpunz-cancel-login"),
+    logout: () => ipcRenderer.invoke("gpunz-logout"),
+    models: () => ipcRenderer.invoke("gpunz-models"),
+    estimate: (modelId, mode, customName) => ipcRenderer.invoke("gpunz-estimate", modelId, mode, customName),
+    launch: (modelId, mode, customName) => ipcRenderer.invoke("gpunz-launch", modelId, mode, customName),
+    openAgent: () => ipcRenderer.invoke("gpunz-open-agent"),
+    stop: () => ipcRenderer.invoke("gpunz-stop"),
+    extend: () => ipcRenderer.invoke("gpunz-extend"),
+    activity: () => ipcRenderer.invoke("gpunz-activity"),
+    refresh: () => ipcRenderer.invoke("gpunz-refresh"),
+    setSettings: (patch) => ipcRenderer.invoke("gpunz-set-settings", patch),
+    open: (target, amountRub) => ipcRenderer.invoke("gpunz-open", target, amountRub),
+    reportError: (error) => ipcRenderer.invoke("gpunz-report-error", error),
+    feedback: (input) => ipcRenderer.invoke("gpunz-feedback", input),
+    checkVersion: () => ipcRenderer.invoke("gpunz-check-version"),
+  },
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   installCli: () => ipcRenderer.invoke("install-cli"),
   awaitInitialization: () => ipcRenderer.invoke("await-initialization"),

@@ -130,7 +130,11 @@ export function loadLocaleDict(locale: Locale) {
 
 function detectLocale(): Locale {
   if (typeof navigator !== "object") return "en"
-  return detectDesktopNativeLocale(navigator.languages?.length ? navigator.languages : [navigator.language])
+  const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
+  // gpu.nz Code: a Russian speaker's system often lists English first (an English Windows with a Russian layout);
+  // Russian anywhere in the list wins, as on the service's own site
+  if (languages.some((language) => language.toLowerCase().startsWith("ru"))) return "ru"
+  return detectDesktopNativeLocale(languages)
 }
 
 export function normalizeLocale(value: string): Locale {

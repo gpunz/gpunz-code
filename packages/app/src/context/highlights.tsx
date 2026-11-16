@@ -7,7 +7,8 @@ import { useSettings } from "@/context/settings"
 import { persisted } from "@/utils/persist"
 import { DialogReleaseNotes, type Highlight } from "@/components/dialog-release-notes"
 
-const CHANGELOG_URL = "https://opencode.ai/changelog.json"
+// gpu.nz Code: the upstream project's release notes are not ours; with no feed nothing is fetched or shown
+const CHANGELOG_URL: string = ""
 
 type Store = {
   version?: string
@@ -165,7 +166,7 @@ export const { use: useHighlights, provider: HighlightsProvider } = createSimple
     }
 
     const start = (previous: string) => {
-      if (!settings.general.releaseNotes()) {
+      if (!CHANGELOG_URL || !settings.general.releaseNotes()) {
         markSeen()
         return
       }

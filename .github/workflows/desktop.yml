@@ -1,0 +1,144 @@
+name: desktop
+
+# Builds gpu.nz Code for every system. A tag (v0.2.0) also collects the installers into a DRAFT release; the gpu.nz
+# team then signs the update manifests with the release key (which is not in this repository, nor in its secrets),
+# checks the build by hand and publishes it. Nothing reaches users from this workflow alone.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # the version of the agent server inside (the upstream release this fork is based on)
+  OPENCODE_VERSION: "1.19.5"
+  OPENCODE_CHANNEL: prod
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: win-x64
+            host: windows-2025
+            flag: --win --x64
+            bun: ""
+          - name: mac-arm64
+            host: macos-26
+            flag: --mac --arm64
+            bun: --os=darwin --cpu=arm64
+          - name: mac-x64
+            host: macos-26-intel
+            flag: --mac --x64
+            bun: --os=darwin --cpu=x64
+          - name: linux-x64
+            host: ubuntu-24.04
+            flag: --linux --x64
+            bun: ""
+    runs-on: ${{ matrix.host }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ matrix.bun }}
+
+      - name: Packaging tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+
+      # our own provider is the only one: the agent server is built without the upstream model catalogue
+      - name: Empty model catalogue
+        shell: bash
+        run: |
+          echo '{}' > "$RUNNER_TEMP/models-empty.json"
+          echo "MODELS_DEV_API_JSON=$RUNNER_TEMP/models-empty.json" >> "$GITHUB_ENV"
+
+      - name: Tests
+        run: bun test src/main/gpunz
+        working-directory: packages/desktop
+
+      - name: Build
+        run: bun run build
+        working-directory: packages/desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Package
+        run: npx electron-builder ${{ matrix.flag }} --publish never --config electron-builder.config.ts
+        working-directory: packages/desktop
+        timeout-minutes: 60
+
+      - name: Signature of the macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: packages/desktop/dist
+        run: |
+          app=$(find . -maxdepth 2 -name '*.app' | head -n 1)
+          codesign --display --verbose=2 "$app" 2>&1 | head -n 12
+          codesign --verify --deep --strict "$app" && echo "signature ok"
+
+      # the two macOS builds each write latest-mac.yml: keep them apart until the release puts them together
+      - name: Name the manifests by system
+        shell: bash
+        working-directory: packages/desktop/dist
+        run: |
+          if [ -f latest-mac.yml ]; then mv latest-mac.yml "latest-${{ matrix.name }}.yml"; fi
+          ls -la
+
+      - name: Checksums
+        shell: bash
+        working-directory: packages/desktop/dist
+        run: |
+          for f in gpunz-code-*; do
+            [ -f "$f" ] || continue
+            case "$f" in *.blockmap) continue ;; esac
+            if command -v sha256sum > /dev/null; then sha256sum "$f"; else shasum -a 256 "$f"; fi
+          done | tee "SHA256SUMS-${{ matrix.name }}.txt"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            packages/desktop/dist/gpunz-code-*
+            packages/desktop/dist/latest*.yml
+            packages/desktop/dist/SHA256SUMS-*.txt
+
+  draft-release:
+    name: draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: desktop-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd artifacts
+          cat SHA256SUMS-*.txt > SHA256SUMS.txt
+          rm -f SHA256SUMS-*.txt
+          ls -la
+          gh release create "$TAG" --draft --title "gpu.nz Code ${TAG#v}" \
+            --notes "Draft: the update manifests are signed and the build is checked by hand before this is published." \
+            gpunz-code-* latest*.yml SHA256SUMS.txt

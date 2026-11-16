@@ -111,9 +111,19 @@ export function registerIpcHandlers(deps: Deps) {
     if (!bundle) throw new Error("Invalid native translation bundle")
     deps.setNativeTranslations(bundle)
   })
+  // gpu.nz Code: the page's key-value stores are plain files in the app's data folder. A name is a file name and
+  // nothing more (no path, so nothing outside that folder is read or written), and the store with the account key
+  // is not one of them: it is read by the main process only.
+  const pageStore = (name: unknown) => {
+    // no separators and a leading letter or digit: the name cannot leave the folder
+    if (typeof name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,240}$/.test(name))
+      throw new Error("invalid store name")
+    if (name.toLowerCase().startsWith("gpunz.")) throw new Error("forbidden store")
+    return getStore(name)
+  }
   ipcMain.handle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     try {
-      const store = getStore(name)
+      const store = pageStore(name)
       const value = store.get(key)
       if (value === undefined || value === null) return null
       return typeof value === "string" ? value : JSON.stringify(value)
@@ -122,22 +132,22 @@ export function registerIpcHandlers(deps: Deps) {
     }
   })
   ipcMain.handle("store-set", (_event: IpcMainInvokeEvent, name: string, key: string, value: string) => {
-    getStore(name).set(key, value)
+    pageStore(name).set(key, value)
   })
   ipcMain.handle("store-delete", (_event: IpcMainInvokeEvent, name: string, key: string) => {
-    getStore(name).delete(key)
+    pageStore(name).delete(key)
     void removeStoreFileIfEmpty(name)
   })
   ipcMain.handle("store-clear", (_event: IpcMainInvokeEvent, name: string) => {
-    getStore(name).clear()
+    pageStore(name).clear()
     void removeStoreFileIfEmpty(name)
   })
   ipcMain.handle("store-keys", (_event: IpcMainInvokeEvent, name: string) => {
-    const store = getStore(name)
+    const store = pageStore(name)
     return Object.keys(store.store)
   })
   ipcMain.handle("store-length", (_event: IpcMainInvokeEvent, name: string) => {
-    const store = getStore(name)
+    const store = pageStore(name)
     return Object.keys(store.store).length
   })
   ipcMain.handle("draft-get", (_event, key: string) => drafts.get(key))
